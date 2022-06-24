@@ -1,0 +1,36 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: macos-${{ github.ref_name }}
+    steps:
+      - name: Download
+        run: |
+          import plistlib
+          import subprocess
+          with open('/System/Library/AssetsV2/com_apple_MobileAsset_Font7/com_apple_MobileAsset_Font7.xml', 'rb') as fp:
+              urls = [asset['__BaseURL'] + asset['__RelativePath'] for asset in plistlib.load(fp)['Assets']
+                      if asset['_CompatibilityVersion'] == 1 and asset.get('__InstallWithOS')]
+          args = ['curl', '--fail', '--fail-early', '--no-progress-meter', '--remote-name-all', '--retry', '5'] + urls
+          subprocess.run(args, check=True)
+        shell: python3 {0}
+
+      - name: Archive
+        run: |
+          unzip '*.zip' 'AssetData/*'
+          zstd -19 -r --output-dir-flat AssetData AssetData /System/Library/Fonts
+        shell: bash
+
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          artifacts: AssetData/*.zst
+          artifactContentType: application/zstd
+          name: Fonts included with macOS ${{ github.ref_name }}
